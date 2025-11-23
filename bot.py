@@ -18,57 +18,26 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    bot_time = get_current_time().strftime("%Y-%m-%d %H:%M:%S")
-    
-    return f'''
-    <!DOCTYPE html>
+    return """
     <html>
     <head>
-        <title>Telegram Shift Bot Status</title>
+        <title>Telegram Bot Status</title>
         <style>
-            body {{ 
-                font-family: Arial, sans-serif; 
-                margin: 40px; 
-                background: #f5f5f5; 
-            }}
-            .container {{ 
-                max-width: 800px; 
-                margin: 0 auto; 
-                background: white; 
-                padding: 30px; 
-                border-radius: 10px; 
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
-            }}
-            .status {{ 
-                color: green; 
-                font-weight: bold; 
-                font-size: 1.2em; 
-            }}
-            .info {{ 
-                background: #e7f3ff; 
-                padding: 15px; 
-                border-radius: 5px; 
-                margin: 15px 0; 
-            }}
+            body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+            .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; }
+            .status { color: green; font-weight: bold; }
         </style>
     </head>
     <body>
         <div class="container">
             <h1>Telegram Shift Bot Status</h1>
-            <p class="status">✅ Bot is running successfully on Render</p>
-            <div class="info">
-                <p><strong>Last updated:</strong> {current_time}</p>
-                <p><strong>Server time:</strong> {bot_time}</p>
-                <p><strong>Bot timezone:</strong> Asia/Phnom_Penh</p>
-                <p><strong>Status:</strong> Operational</p>
-            </div>
-            <p>This bot manages shift tracking, penalties, and multi-language support for teams.</p>
+            <p class="status">✅ Bot is running successfully</p>
+            <p><strong>Status:</strong> Operational</p>
+            <p><strong>Time:</strong> """ + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + """</p>
         </div>
     </body>
     </html>
-    '''
-
+    """
 @app.route('/health')
 def health():
     return {"status": "healthy", "timestamp": datetime.now().isoformat(), "service": "telegram-shift-bot"}
@@ -1902,3 +1871,4 @@ def main_with_restart():
 if __name__ == "__main__":
     logger.info("🎯 Starting Telegram Shift Bot with Render.com compatibility")
     main_with_restart()
+
