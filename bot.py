@@ -2,11 +2,10 @@ import logging
 import json
 import csv
 import os
-import pytz
 import threading
 import time
 import requests
-from datetime import datetime, date, time, timedelta
+from datetime import datetime, date, timedelta
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
@@ -19,25 +18,48 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return """
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    bot_time = get_current_time().strftime("%Y-%m-%d %H:%M:%S")
+    
+    return f'''
     <!DOCTYPE html>
     <html>
     <head>
         <title>Telegram Shift Bot Status</title>
         <style>
-            body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
-            .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-            .status { color: green; font-weight: bold; font-size: 1.2em; }
-            .info { background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 15px 0; }
+            body {{ 
+                font-family: Arial, sans-serif; 
+                margin: 40px; 
+                background: #f5f5f5; 
+            }}
+            .container {{ 
+                max-width: 800px; 
+                margin: 0 auto; 
+                background: white; 
+                padding: 30px; 
+                border-radius: 10px; 
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+            }}
+            .status {{ 
+                color: green; 
+                font-weight: bold; 
+                font-size: 1.2em; 
+            }}
+            .info {{ 
+                background: #e7f3ff; 
+                padding: 15px; 
+                border-radius: 5px; 
+                margin: 15px 0; 
+            }}
         </style>
     </head>
     <body>
         <div class="container">
-            <h1> Telegram Shift Bot Status</h1>
+            <h1>Telegram Shift Bot Status</h1>
             <p class="status">✅ Bot is running successfully on Render</p>
             <div class="info">
-                <p><strong>Last updated:</strong> {}</p>
-                <p><strong>Server time:</strong> {}</p>
+                <p><strong>Last updated:</strong> {current_time}</p>
+                <p><strong>Server time:</strong> {bot_time}</p>
                 <p><strong>Bot timezone:</strong> Asia/Phnom_Penh</p>
                 <p><strong>Status:</strong> Operational</p>
             </div>
@@ -45,7 +67,7 @@ def home():
         </div>
     </body>
     </html>
-    """.format(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), get_current_time().strftime("%Y-%m-%d %H:%M:%S"))
+    '''
 
 @app.route('/health')
 def health():
@@ -90,7 +112,7 @@ ACTIVITY_LIMITS = {
     "smoke": 8
 }
 
-# Multi-language Texts (Keep your existing TEXTS dictionary here)
+# Multi-language Texts
 TEXTS = {
     "khmer": {
         "language_name": "ភាសាខ្មែរ",
@@ -429,6 +451,7 @@ async def is_approved_group(chat_id: int) -> bool:
 def get_current_time():
     """Get current time in configured timezone"""
     try:
+        import pytz
         tz = pytz.timezone(BOT_CONFIG["timezone"])
         return datetime.now(tz)
     except:
@@ -437,8 +460,12 @@ def get_current_time():
 def make_timezone_aware(dt):
     """Make a datetime timezone aware"""
     if dt.tzinfo is None:
-        tz = pytz.timezone(BOT_CONFIG["timezone"])
-        return tz.localize(dt)
+        try:
+            import pytz
+            tz = pytz.timezone(BOT_CONFIG["timezone"])
+            return tz.localize(dt)
+        except:
+            return dt
     return dt
 
 async def send_status_message(chat_id: int, bot, additional_text: str = ""):
@@ -528,7 +555,7 @@ async def track_user_activity(chat_id: int, user):
         group_members[chat_id][user_id]["language"] = get_user_language(user_id)
 
 async def save_backup_files():
-    """Save backup files without pandas"""
+    """Save backup files in multiple formats"""
     current_time = get_current_time()
     timestamp = current_time.strftime("%Y%m%d_%H%M%S")
     
@@ -554,7 +581,7 @@ async def save_backup_files():
     csv_filename = f"backups/user_records_{timestamp}.csv"
     with open(csv_filename, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow(['User ID', 'User Name', 'Work Total Seconds', 'Total Penalties', 'Last Reset', 'Language'])
+        writer.writerow(['User ID', 'User Name', 'Work Total', 'Total Penalties', 'Last Reset', 'Language'])
         
         for uid, record in user_records.items():
             total_penalty = 0
@@ -579,7 +606,7 @@ async def save_backup_files():
     return json_filename, csv_filename
 
 async def send_backup_to_group(context: ContextTypes.DEFAULT_TYPE):
-    """Send backup files to the group without Excel"""
+    """Send backup files to the group"""
     try:
         json_file, csv_file = await save_backup_files()
         current_time = get_current_time()
@@ -616,37 +643,6 @@ async def send_backup_to_group(context: ContextTypes.DEFAULT_TYPE):
             text=f"❌ Failed to send backup files: {e}"
         )
 
-async def export_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Export data without Excel"""
-    user_id = update.message.from_user.id
-    if not is_owner(user_id):
-        await update.message.reply_text("❌ " + get_text("not_allowed_error", user_id))
-        return
-
-    try:
-        json_file, csv_file = await save_backup_files()
-        
-        with open(json_file, 'rb') as f:
-            await update.message.reply_document(
-                document=f,
-                caption="JSON Backup File"
-            )
-        
-        with open(csv_file, 'rb') as f:
-            await update.message.reply_document(
-                document=f,
-                caption="CSV Backup File"
-            )
-        
-        # Cleanup
-        try:
-            os.remove(json_file)
-            os.remove(csv_file)
-        except:
-            pass
-        
-    except Exception as e:
-        await update.message.reply_text(f"❌ Export failed: {e}")
 async def reset_all_records(context: ContextTypes.DEFAULT_TYPE):
     """Reset all user records and send backup"""
     global user_records
@@ -1057,7 +1053,7 @@ async def export_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        json_file, csv_file, excel_file = await save_backup_files()
+        json_file, csv_file = await save_backup_files()
         
         with open(json_file, 'rb') as f:
             await update.message.reply_document(
@@ -1071,17 +1067,10 @@ async def export_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 caption="CSV Backup File"
             )
         
-        with open(excel_file, 'rb') as f:
-            await update.message.reply_document(
-                document=f,
-                caption="Detailed Excel Report"
-            )
-        
         # Cleanup
         try:
             os.remove(json_file)
             os.remove(csv_file)
-            os.remove(excel_file)
         except:
             pass
         
@@ -1778,6 +1767,73 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Operation cancelled", reply_markup=get_keyboard(user_id))
     return ConversationHandler.END
 
+def setup_handlers(application):
+    """Setup all bot handlers"""
+    # Conversation handlers
+    group_conv = ConversationHandler(
+        entry_points=[CommandHandler("approve_group", group_approval_start)],
+        states={
+            APPROVE_GROUP: [MessageHandler(filters.TEXT & ~filters.COMMAND, group_approval_end)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
+    
+    work_time_conv = ConversationHandler(
+        entry_points=[CommandHandler("set_work_time", set_work_time_start)],
+        states={
+            SET_WORK_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_work_time_end)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
+    
+    reset_time_conv = ConversationHandler(
+        entry_points=[CommandHandler("set_reset_time", set_reset_time_start)],
+        states={
+            SET_RESET_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_reset_time_end)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
+    
+    language_conv = ConversationHandler(
+        entry_points=[CommandHandler("set_language", set_language_start)],
+        states={
+            SET_LANGUAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_language_end)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
+    
+    allowed_user_conv = ConversationHandler(
+        entry_points=[CommandHandler("add_allowed_user", add_allowed_user_start)],
+        states={
+            ADD_ALLOWED_USER: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_allowed_user_end)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
+    
+    # Add handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("stats", admin_stats))
+    application.add_handler(CommandHandler("export", export_data))
+    application.add_handler(CommandHandler("list_groups", list_groups))
+    application.add_handler(CommandHandler("unauthorized_logs", unauthorized_logs))
+    application.add_handler(CommandHandler("broadcast", broadcast))
+    application.add_handler(CommandHandler("show_config", show_config))
+    application.add_handler(CommandHandler("list_allowed_users", list_allowed_users))
+    
+    # Add direct language command handlers
+    application.add_handler(CommandHandler("km", set_language_khmer))
+    application.add_handler(CommandHandler("ch", set_language_chinese))
+    application.add_handler(CommandHandler("en", set_language_english))
+    
+    application.add_handler(group_conv)
+    application.add_handler(work_time_conv)
+    application.add_handler(reset_time_conv)
+    application.add_handler(language_conv)
+    application.add_handler(allowed_user_conv)
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, checkin))
+    application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
+    application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, handle_new_group))
+
 def main_with_restart():
     """Main function with auto-restart for Render compatibility"""
     # Start Flask server in a separate thread for health checks
@@ -1793,20 +1849,20 @@ def main_with_restart():
         try:
             logger.info("🤖 Starting Telegram Bot...")
             
-            # Create application
-            app = Application.builder().token(TOKEN).build()
+            # Create application with updated approach
+            application = Application.builder().token(TOKEN).build()
             
             # Schedule jobs with configurable times
-            app.job_queue.run_daily(
+            application.job_queue.run_daily(
                 reset_all_records, 
                 time=BOT_CONFIG["daily_reset_time"]
             )
-            app.job_queue.run_daily(
+            application.job_queue.run_daily(
                 broadcast_penalties, 
                 time=BOT_CONFIG["summary_time"]
             )
-            app.job_queue.run_repeating(check_activity_warnings, interval=30, first=10)
-            app.job_queue.run_repeating(check_activity_overtime, interval=300, first=10)
+            application.job_queue.run_repeating(check_activity_warnings, interval=30, first=10)
+            application.job_queue.run_repeating(check_activity_overtime, interval=300, first=10)
             
             # Add periodic group member updates
             async def update_all_group_members(context: ContextTypes.DEFAULT_TYPE):
@@ -1814,75 +1870,13 @@ def main_with_restart():
                 for group_id in approved_groups:
                     await update_group_members(group_id, context.bot)
             
-            app.job_queue.run_repeating(update_all_group_members, interval=3600, first=10)
+            application.job_queue.run_repeating(update_all_group_members, interval=3600, first=10)
             
             # Send startup message when bot starts
-            app.job_queue.run_once(send_startup_message, when=5)
+            application.job_queue.run_once(send_startup_message, when=5)
             
-            # Conversation handlers
-            group_conv = ConversationHandler(
-                entry_points=[CommandHandler("approve_group", group_approval_start)],
-                states={
-                    APPROVE_GROUP: [MessageHandler(filters.TEXT & ~filters.COMMAND, group_approval_end)]
-                },
-                fallbacks=[CommandHandler("cancel", cancel)]
-            )
-            
-            work_time_conv = ConversationHandler(
-                entry_points=[CommandHandler("set_work_time", set_work_time_start)],
-                states={
-                    SET_WORK_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_work_time_end)]
-                },
-                fallbacks=[CommandHandler("cancel", cancel)]
-            )
-            
-            reset_time_conv = ConversationHandler(
-                entry_points=[CommandHandler("set_reset_time", set_reset_time_start)],
-                states={
-                    SET_RESET_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_reset_time_end)]
-                },
-                fallbacks=[CommandHandler("cancel", cancel)]
-            )
-            
-            language_conv = ConversationHandler(
-                entry_points=[CommandHandler("set_language", set_language_start)],
-                states={
-                    SET_LANGUAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_language_end)]
-                },
-                fallbacks=[CommandHandler("cancel", cancel)]
-            )
-            
-            allowed_user_conv = ConversationHandler(
-                entry_points=[CommandHandler("add_allowed_user", add_allowed_user_start)],
-                states={
-                    ADD_ALLOWED_USER: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_allowed_user_end)]
-                },
-                fallbacks=[CommandHandler("cancel", cancel)]
-            )
-            
-            # Add handlers
-            app.add_handler(CommandHandler("start", start))
-            app.add_handler(CommandHandler("stats", admin_stats))
-            app.add_handler(CommandHandler("export", export_data))
-            app.add_handler(CommandHandler("list_groups", list_groups))
-            app.add_handler(CommandHandler("unauthorized_logs", unauthorized_logs))
-            app.add_handler(CommandHandler("broadcast", broadcast))
-            app.add_handler(CommandHandler("show_config", show_config))
-            app.add_handler(CommandHandler("list_allowed_users", list_allowed_users))
-            
-            # Add direct language command handlers
-            app.add_handler(CommandHandler("km", set_language_khmer))
-            app.add_handler(CommandHandler("ch", set_language_chinese))
-            app.add_handler(CommandHandler("en", set_language_english))
-            
-            app.add_handler(group_conv)
-            app.add_handler(work_time_conv)
-            app.add_handler(reset_time_conv)
-            app.add_handler(language_conv)
-            app.add_handler(allowed_user_conv)
-            app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, checkin))
-            app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
-            app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, handle_new_group))
+            # Add all handlers
+            setup_handlers(application)
             
             # Initialize approved groups with the main group
             approved_groups.add(GROUP_ID)
@@ -1891,10 +1885,9 @@ def main_with_restart():
             logger.info("🚀 Starting bot polling...")
             
             # Run the bot with polling
-            app.run_polling(
+            application.run_polling(
                 drop_pending_updates=True,
-                allowed_updates=Update.ALL_TYPES,
-                close_loop=False
+                allowed_updates=Update.ALL_TYPES
             )
             
         except KeyboardInterrupt:
@@ -1908,6 +1901,4 @@ def main_with_restart():
 
 if __name__ == "__main__":
     logger.info("🎯 Starting Telegram Shift Bot with Render.com compatibility")
-
     main_with_restart()
-
