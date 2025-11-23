@@ -4,7 +4,6 @@ import csv
 import os
 import asyncio
 import pytz
-import pandas as pd
 import threading
 import time
 import requests
@@ -530,7 +529,7 @@ async def track_user_activity(chat_id: int, user):
         group_members[chat_id][user_id]["language"] = get_user_language(user_id)
 
 async def save_backup_files():
-    """Save backup files in multiple formats"""
+    """Save backup files without pandas"""
     current_time = get_current_time()
     timestamp = current_time.strftime("%Y%m%d_%H%M%S")
     
@@ -556,7 +555,7 @@ async def save_backup_files():
     csv_filename = f"backups/user_records_{timestamp}.csv"
     with open(csv_filename, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow(['User ID', 'User Name', 'Work Total', 'Total Penalties', 'Last Reset', 'Language'])
+        writer.writerow(['User ID', 'User Name', 'Work Total Seconds', 'Total Penalties', 'Last Reset', 'Language'])
         
         for uid, record in user_records.items():
             total_penalty = 0
@@ -578,60 +577,12 @@ async def save_backup_files():
                 get_user_language(uid)
             ])
     
-    # Excel backup for user records
-    excel_filename = f"backups/user_records_{timestamp}.xlsx"
-    
-    # Prepare data for Excel
-    excel_data = []
-    for uid, record in user_records.items():
-        total_penalty = 0
-        penalty_details = []
-        if record.get("penalties"):
-            for p in record["penalties"]:
-                if "៛" in p:
-                    try:
-                        penalty_amount = int(p.split("៛")[0].split()[-1])
-                        total_penalty += penalty_amount
-                        penalty_details.append(p)
-                    except (ValueError, IndexError):
-                        continue
-        
-        pure_work_time = record.get("work_total", 0) - record["times"].get("total", 0)
-        if pure_work_time < 0:
-            pure_work_time = 0
-        
-        excel_data.append({
-            'User ID': uid,
-            'User Name': record.get("name", ""),
-            'Work Total Seconds': record.get("work_total", 0),
-            'Work Total': format_duration(record.get("work_total", 0)),
-            'Pure Work Seconds': pure_work_time,
-            'Pure Work Time': format_duration(pure_work_time),
-            'Total Penalties': total_penalty,
-            'Penalty Details': '; '.join(penalty_details) if penalty_details else 'None',
-            'Meal Count': record['counts'].get(get_text("meal", uid), 0),
-            'Toilet Count': record['counts'].get(get_text("toilet", uid), 0),
-            'Smoke Count': record['counts'].get(get_text("smoke", uid), 0),
-            'Rest Count': record['counts'].get(get_text("rest", uid), 0),
-            'Meal 1 Count': record['counts'].get(get_text("meal_count_1", uid), 0),
-            'Meal 2 Count': record['counts'].get(get_text("meal_count_2", uid), 0),
-            'Total Active Seconds': record['times'].get('total', 0),
-            'Total Active Time': format_duration(record['times'].get('total', 0)),
-            'Last Reset': record.get("last_reset", ""),
-            'Language': get_user_language(uid)
-        })
-    
-    # Create DataFrame and save to Excel
-    if excel_data:
-        df = pd.DataFrame(excel_data)
-        df.to_excel(excel_filename, index=False, engine='openpyxl')
-    
-    return json_filename, csv_filename, excel_filename
+    return json_filename, csv_filename
 
 async def send_backup_to_group(context: ContextTypes.DEFAULT_TYPE):
-    """Send backup files to the group"""
+    """Send backup files to the group without Excel"""
     try:
-        json_file, csv_file, excel_file = await save_backup_files()
+        json_file, csv_file = await save_backup_files()
         current_time = get_current_time()
         
         # Send JSON backup
@@ -650,19 +601,10 @@ async def send_backup_to_group(context: ContextTypes.DEFAULT_TYPE):
                 caption=f"📋 User Records Backup (CSV)\nTime: {current_time.strftime('%Y-%m-%d %H:%M:%S')}"
             )
         
-        # Send Excel backup
-        with open(excel_file, 'rb') as f:
-            await context.bot.send_document(
-                chat_id=GROUP_ID,
-                document=f,
-                caption=f"📈 Detailed User Report (Excel)\nTime: {current_time.strftime('%Y-%m-%d %H:%M:%S')}"
-            )
-        
         # Cleanup
         try:
             os.remove(json_file)
             os.remove(csv_file)
-            os.remove(excel_file)
         except:
             pass
         
@@ -675,6 +617,37 @@ async def send_backup_to_group(context: ContextTypes.DEFAULT_TYPE):
             text=f"❌ Failed to send backup files: {e}"
         )
 
+async def export_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Export data without Excel"""
+    user_id = update.message.from_user.id
+    if not is_owner(user_id):
+        await update.message.reply_text("❌ " + get_text("not_allowed_error", user_id))
+        return
+
+    try:
+        json_file, csv_file = await save_backup_files()
+        
+        with open(json_file, 'rb') as f:
+            await update.message.reply_document(
+                document=f,
+                caption="JSON Backup File"
+            )
+        
+        with open(csv_file, 'rb') as f:
+            await update.message.reply_document(
+                document=f,
+                caption="CSV Backup File"
+            )
+        
+        # Cleanup
+        try:
+            os.remove(json_file)
+            os.remove(csv_file)
+        except:
+            pass
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Export failed: {e}")
 async def reset_all_records(context: ContextTypes.DEFAULT_TYPE):
     """Reset all user records and send backup"""
     global user_records
@@ -1936,4 +1909,5 @@ def main_with_restart():
 
 if __name__ == "__main__":
     logger.info("🎯 Starting Telegram Shift Bot with Render.com compatibility")
+
     main_with_restart()
