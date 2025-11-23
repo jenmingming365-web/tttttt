@@ -1,13 +1,15 @@
 services:
   - type: web
-    name: telegram-shift-bot
+    name: tttttt
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
     startCommand: python bot.py
     envVars:
       - key: BOT_TOKEN
-        value: 8146462889:AAFx1i_I0U7xxVsSLQze2JCNkg3Vs-U6Q5g
+        value: your_bot_token_here
       - key: OWNER_ID
         value: 7953403242
       - key: GROUP_ID
