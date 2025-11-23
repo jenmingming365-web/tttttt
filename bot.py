@@ -2,7 +2,6 @@ import logging
 import json
 import csv
 import os
-import asyncio
 import pytz
 import threading
 import time
@@ -1911,3 +1910,4 @@ if __name__ == "__main__":
     logger.info("🎯 Starting Telegram Shift Bot with Render.com compatibility")
 
     main_with_restart()
+
